@@ -45,6 +45,10 @@ class sync_yafotki():
         # Encrypt a couple of login and password received RSA-key.
         self._crypt()
 
+        # Exchange encrypted login and password for the authorization token.
+        self._request_token()
+
+
     def _request_key(self):
         """
         Request the server to the public RSA-key and request_id.
@@ -88,6 +92,28 @@ class sync_yafotki():
             hex_out += hex_result
 
         self._rsa_key = hex_out.decode("hex").encode("base64").replace("\n", "")
+
+    def _request_token(self):
+        """
+        Request the server to the public RSA-key and request_id.
+        """
+        values = {
+            "request_id": self._request_id,
+            "credentials": self._rsa_key
+        }
+        data = urllib.urlencode(values)
+        req = urllib2.Request(self._request_token_url, data)
+        response = urllib2.urlopen(req)
+        xml = response.read()
+        soup = BeautifulStoneSoup(xml)
+        self._token = soup.token.string
+        if self._token != "":
+            return True
+        else:
+            print xml
+            exit()
+
+
 
 if __name__ == '__main__':
     y = sync_yafotki("yafotkimytest123", "g2h9h4")
