@@ -1,10 +1,10 @@
 #-*- coding:utf-8 -*-
+import os
 import urllib
 import urllib2
 from BeautifulSoup import BeautifulStoneSoup
 
 __author__ = 'ponomarevsa@yandex.ru'
-
 
 class sync_yafotki():
     """
@@ -20,7 +20,7 @@ class sync_yafotki():
 
     _request_key_url = "http://auth.mobile.yandex.ru/yamrsa/key/"
     _request_token_url = "http://auth.mobile.yandex.ru/yamrsa/token/"
-    _request_albums_url = "http://auth.mobile.yandex.ru/yamrsa/token/"
+    _request_albums_url = 'http://api-fotki.yandex.ru/api/users/%s/albums/'
 
     def __init__(self, username="", password=""):
         """
@@ -48,6 +48,8 @@ class sync_yafotki():
         # Exchange encrypted login and password for the authorization token.
         self._request_token()
 
+        # Download albums
+        self._download()
 
     def _request_key(self):
         """
@@ -63,6 +65,7 @@ class sync_yafotki():
     def _crypt(self):
         """
         Encrypt a couple of login and password received RSA-key.
+        @author http://lomik.habrahabr.ru/
         see for detail: http://habrahabr.ru/blogs/firefox/83710/
         """
 
@@ -113,6 +116,75 @@ class sync_yafotki():
             print xml
             exit()
 
+    def _download(self):
+        """
+        download fotki
+        """
+        if not os.path.exists(self._root_dir): os.makedirs(self._root_dir)
+
+        url = self._request_albums_url % self.username
+        req = urllib2.Request(url)
+        req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
+        xml = urllib2.urlopen(req).read()
+        soup = BeautifulStoneSoup(xml)
+
+        # href => key associate array
+        all_ids_by_href = {}
+        for entry in soup('entry'):
+            all_ids_by_href[entry.findNext('link', rel="self")['href']] = entry.findNext('id').string
+
+        # find all parents
+        albums = []
+        for link in soup('link'):
+            if link["rel"] != "self" and link["rel"] != "album":
+                continue
+            albums.append(
+                    {
+                    "HREF": link["href"],
+                    "REL": link["rel"],
+                    "PATH": link.findPrevious('title').string,
+                    }
+            )
+
+        parents_by_url = {}
+        for index in range(1, len(albums)):
+            if albums[index]["REL"] == "album":
+                continue
+
+            if index < len(albums) - 1:
+                if albums[index + 1]["REL"] == "album":
+                    parents_by_url[albums[index]["HREF"]] = albums[index + 1]["HREF"]
+                else:
+                    parents_by_url[albums[index]["HREF"]] = None
+            else:
+                parents_by_url[albums[index]["HREF"]] = None
+
+        # all albums to dict
+        albums = {}
+        for entry in soup('entry'):
+            albums[entry.findNext('link', rel="self")['href']] = {
+                "URL": entry.findNext('link', rel="self")['href'],
+                "PATH": entry.findNext('title').string,
+                "COUNT": entry.findNext('f:image-count')["value"],
+                "PARENT": parents_by_url[entry.findNext('link', rel="self")['href']]
+            }
+
+        # build tree paths
+        for key in albums:
+            if not albums[key]["PARENT"] is None:
+                path = albums[key]["PATH"]
+                while 1:
+                    parent = albums[key]["PARENT"]
+                    path = os.path.join(albums[parent]["PATH"], path)
+                    if albums[parent]["PARENT"] == None:
+                        break
+                    else:
+                        albums[key]["PARENT"] = albums[parent]["PARENT"]
+                albums[key]["PATH2"] = os.path.join(path)
+            else:
+                albums[key]["PATH2"] = albums[key]["PATH"]
+
+            print key, albums[key]["PATH2"]
 
 
 if __name__ == '__main__':
