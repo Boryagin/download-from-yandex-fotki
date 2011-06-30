@@ -1,5 +1,5 @@
 #-*- coding:utf-8 -*-
-import os
+import os, sys
 import urllib
 import urllib2
 from BeautifulSoup import BeautifulStoneSoup
@@ -16,7 +16,7 @@ class sync_yafotki():
     _request_id = ""
     _rsa_key = ""
     _token = ""
-    _root_dir = r'c:\myfotki'
+    _root_dir = r'c:\fotki'
 
     _request_key_url = "http://auth.mobile.yandex.ru/yamrsa/key/"
     _request_token_url = "http://auth.mobile.yandex.ru/yamrsa/token/"
@@ -186,7 +186,56 @@ class sync_yafotki():
 
             print key, albums[key]["PATH2"]
 
+        # Download albums
+        for link in albums:
+            print "Downloading", albums[link]["PATH2"], albums[link]["COUNT"], "items"
+
+            # make folders
+            album_dir = os.path.join(self._root_dir, albums[link]["PATH2"])
+            if not os.path.exists(album_dir): os.makedirs(album_dir)
+
+            # GET album data
+            req = urllib2.Request(link + "/photos/")
+            req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
+            xml2 = urllib2.urlopen(req).read()
+            soup2 = BeautifulStoneSoup(xml2)
+
+            try:
+                link = soup2.find('link', rel="next")['href']
+            except:
+                _continue = False
+            n = 0
+            for entry in soup2('entry'):
+                nodeid = entry.id.string
+                id = nodeid.split(":")[5]
+                image_link = entry.findNext('content')['src']
+                image_link = image_link.split('_')
+                image_link[len(image_link) - 1] = 'orig'
+                image_link = '_'.join(image_link)
+
+                image_basename = id + entry.title.string
+
+                # download photo
+                os.chdir(album_dir)
+                if not os.path.exists(image_basename):
+                    print 'download ' + image_link
+                    data = urllib2.urlopen(image_link).read()
+                    try:
+                        open(image_basename, 'wb').write(data)
+                        n = n + 1
+                    except:
+                        print "Error: ", sys.exc_info()
+                        exit()
+                else:
+                    print "skip, %s already exist." % image_basename
+                    n = n + 1
+
+            print "photos count:", albums[link]["COUNT"] , n
+            if int(albums[link]["COUNT"]) != n:
+                print "does not coincide"
+                exit()
+
 
 if __name__ == '__main__':
-    y = sync_yafotki("yafotkimytest123", "g2h9h4")
+    y = sync_yafotki()
     
