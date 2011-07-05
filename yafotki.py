@@ -188,18 +188,6 @@ class sync_yafotki():
         for link in albums:
             count_photos = albums[link]["COUNT"]
             print "Downloading", albums[link]["PATH2"], count_photos, "items"
-            #===================================================================
-            # 
-            # print link
-            # link = link + "/photos/"
-            # req = urllib2.Request(link)
-            # req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
-            # xml2 = urllib2.urlopen(req).read()
-            # soup2 = BeautifulStoneSoup(xml2)
-            # print soup2
-            # exit()
-            # continue
-            #===================================================================
             # make folders
             album_dir = os.path.join(self._root_dir, albums[link]["PATH2"])
             if not os.path.exists(album_dir): os.makedirs(album_dir)
@@ -209,24 +197,26 @@ class sync_yafotki():
             link = link + "photos/"
             while _continue:
                 # GET album data
-                
                 req = urllib2.Request(link)
                 req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
                 xml2 = urllib2.urlopen(req).read()
                 soup2 = BeautifulStoneSoup(xml2)
+                
+                # if the tag does not exist "atom:link[@rel=next]" - exit the loop
                 try:
                     link = soup2.find('link', rel="next")['href']
                 except:
                     _continue = False
-
+                
+                # Download photos from the pages of an album
                 for entry in soup2('entry'):
+                    # make photo name
                     nodeid = entry.id.string
                     id = nodeid.split(":")[5]
                     image_link = entry.findNext('content')['src']
                     image_link = image_link.split('_')
                     image_link[len(image_link) - 1] = 'orig'
                     image_link = '_'.join(image_link)
-    
                     image_basename = id + entry.title.string
     
                     # download photo
@@ -244,6 +234,7 @@ class sync_yafotki():
                         print "skip, %s already exist." % image_basename
                         n = n + 1
     
+            # check count photos
             print "photos count:", count_photos , n
             if int(count_photos) != n:
                 print "does not coincide"
