@@ -84,7 +84,7 @@ class sync_yafotki():
             plain = 0
             for x in range(0, len(tmp)): plain += tmp[x] * pow(256, x, N)
             hex_result = "%x" % pow(plain, E, N)
-            hex_result = "".join(['0'] * ( len(NSTR) - len(hex_result))) + hex_result
+            hex_result = "".join(['0'] * (len(NSTR) - len(hex_result))) + hex_result
 
             for x in range(0, min(len(hex_result), len(prev_crypted) * 2), 2):
                 prev_crypted[x / 2] = int(hex_result[x:x + 2], 16)
@@ -184,58 +184,73 @@ class sync_yafotki():
             else:
                 albums[key]["PATH2"] = albums[key]["PATH"]
 
-            print key, albums[key]["PATH2"]
-
         # Download albums
         for link in albums:
-            print "Downloading", albums[link]["PATH2"], albums[link]["COUNT"], "items"
-
+            count_photos = albums[link]["COUNT"]
+            print "Downloading", albums[link]["PATH2"], count_photos, "items"
+            #===================================================================
+            # 
+            # print link
+            # link = link + "/photos/"
+            # req = urllib2.Request(link)
+            # req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
+            # xml2 = urllib2.urlopen(req).read()
+            # soup2 = BeautifulStoneSoup(xml2)
+            # print soup2
+            # exit()
+            # continue
+            #===================================================================
             # make folders
             album_dir = os.path.join(self._root_dir, albums[link]["PATH2"])
             if not os.path.exists(album_dir): os.makedirs(album_dir)
 
-            # GET album data
-            req = urllib2.Request(link + "/photos/")
-            req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
-            xml2 = urllib2.urlopen(req).read()
-            soup2 = BeautifulStoneSoup(xml2)
-
-            try:
-                link = soup2.find('link', rel="next")['href']
-            except:
-                _continue = False
             n = 0
-            for entry in soup2('entry'):
-                nodeid = entry.id.string
-                id = nodeid.split(":")[5]
-                image_link = entry.findNext('content')['src']
-                image_link = image_link.split('_')
-                image_link[len(image_link) - 1] = 'orig'
-                image_link = '_'.join(image_link)
+            _continue = True
+            link = link + "photos/"
+            while _continue:
+                # GET album data
+                
+                req = urllib2.Request(link)
+                req.add_header('Authorization', 'FimpToken realm="fotki.yandex.ru", token="' + self._token + '"')
+                xml2 = urllib2.urlopen(req).read()
+                soup2 = BeautifulStoneSoup(xml2)
+                try:
+                    link = soup2.find('link', rel="next")['href']
+                except:
+                    _continue = False
 
-                image_basename = id + entry.title.string
-
-                # download photo
-                os.chdir(album_dir)
-                if not os.path.exists(image_basename):
-                    print 'download ' + image_link
-                    data = urllib2.urlopen(image_link).read()
-                    try:
-                        open(image_basename, 'wb').write(data)
+                for entry in soup2('entry'):
+                    nodeid = entry.id.string
+                    id = nodeid.split(":")[5]
+                    image_link = entry.findNext('content')['src']
+                    image_link = image_link.split('_')
+                    image_link[len(image_link) - 1] = 'orig'
+                    image_link = '_'.join(image_link)
+    
+                    image_basename = id + entry.title.string
+    
+                    # download photo
+                    os.chdir(album_dir)
+                    if not os.path.exists(image_basename):
+                        print 'download ' + image_link
+                        data = urllib2.urlopen(image_link).read()
+                        try:
+                            open(image_basename, 'wb').write(data)
+                            n = n + 1
+                        except:
+                            print "Error: ", sys.exc_info()
+                            exit()
+                    else:
+                        print "skip, %s already exist." % image_basename
                         n = n + 1
-                    except:
-                        print "Error: ", sys.exc_info()
-                        exit()
-                else:
-                    print "skip, %s already exist." % image_basename
-                    n = n + 1
-
-            print "photos count:", albums[link]["COUNT"] , n
-            if int(albums[link]["COUNT"]) != n:
+    
+            print "photos count:", count_photos , n
+            if int(count_photos) != n:
                 print "does not coincide"
                 exit()
 
 
 if __name__ == '__main__':
     y = sync_yafotki()
+ 
     
